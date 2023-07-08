@@ -3,6 +3,9 @@ import socket
 import threading
 import select
 from server import SocketServer
+from tkinter import messagebox
+from tkinter import simpledialog
+
 
 class Client:
     def __init__(self, host, port):
@@ -22,21 +25,49 @@ class Client:
     def send_msg(self, msg):
         try:
             self.sock.send(msg.encode())
-        except:
-            pass
+        except Exception as e:
+            print("Exception:", e)
 
     def listen(self):
         while True:
-            r_ready_sockets, _, _ = select.select([self.sock], [], [])
             try:
                 recv_msg = self.sock.recv(4096).decode()
+                if recv_msg == "未登録":
+                    if gui.ask_for_registration():
+                        self.send_msg("yes")
+                    else:
+                        self.send_msg("no")
+                if recv_msg == "パスワード":
+                    psw = gui.ask_for_pass()
+                    self.send_msg(psw)
             except:
                 break
             self.stock_msg(recv_msg)
+            if "未登録" in self.stocked_msg:
+                self.stocked_msg.remove("未登録")
+            if "パスワード" in self.stocked_msg:
+                self.stocked_msg.remove("パスワード")
+            
 
     def stock_msg(self, msg):
         self.stocked_msg.append(msg)
-
+    
+    def ask_for_registration(self):
+        result = messagebox.askyesno("登録", "登録しますか？")
+        return result
+    
+    def ask_for_pass(self):
+        password = simpledialog.askstring("テキスト入力", "テキストを入力してください:")
+        print("入力されたテキスト:", password)
+        if password:
+            # 入力されたテキストを処理する
+            print("入力されたテキスト:", password)
+            return True, password
+        else:
+            # キャンセルされた場合の処理
+            print("キャンセルしました")
+            return False, ""
+        
 
 class GUI:
     def __init__(self, client):
@@ -67,6 +98,8 @@ class GUI:
 
         self.bt2 = tk.Button(master=self.frame, text="削除", bg="skyblue", command=self.all_delete)
         self.bt2.place(relx=0.75, rely=0.0, relwidth=0.20, relheight=0.1)
+        
+        
 
         self.frame.pack()
 
@@ -93,26 +126,40 @@ class GUI:
         self.text_w.config(state=tk.NORMAL)
         self.text_w.delete(1.0, tk.END)
         self.text_w.config(state=tk.DISABLED)
+    
+    def start(self, gui):
+        gui.stock_msg()
+        gui.root.mainloop()
+    
+    def ask_for_registration(self):
+        result = messagebox.askyesno("登録", "登録しますか？")
+        return result
+    
+    def ask_for_pass(self):
+        self.dialog = tk.Toplevel(self.root) 
+        self.dialog.title("パスワード入力")
+        self.dialog.geometry("500x90")
+        def close_dialog():
+            self.dialog.destroy()
 
+        password = tk.StringVar()
+        entry = tk.Entry(self.dialog, textvariable=password)
+        entry.pack()
 
-class ChatApp:
-    def __init__(self, host, port):
-        self.client = Client(host, port)
-        self.gui = GUI(self.client)
+        button = tk.Button(self.dialog, text="OK", command=close_dialog)
+        button.pack()
 
-    def start(self):
-        self.client.connect()
-        self.gui.stock_msg()
-        self.gui.root.mainloop()
+        # ダイアログが閉じられるまで待機
+        self.dialog.wait_window(self.dialog)
+
+        return password.get()
 
 
 if __name__ == "__main__":
     host = '127.0.0.1'
     port = 50000
-    backlog = 10
-    bufsize = 4096
-    server = SocketServer(host, port, backlog, bufsize)
-    server.start()
-    app = ChatApp(host, port)
-    app.start()
+    client = Client(host, port)
+    client.connect()
+    gui = GUI(client)
+    gui.start(gui)
    
