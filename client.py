@@ -1,10 +1,7 @@
 import tkinter as tk
 import socket
 import threading
-import select
-from server import SocketServer
 from tkinter import messagebox
-from tkinter import simpledialog
 
 
 class Client:
@@ -48,58 +45,39 @@ class Client:
             if "パスワード" in self.stocked_msg:
                 self.stocked_msg.remove("パスワード")
             
-
     def stock_msg(self, msg):
         self.stocked_msg.append(msg)
-    
-    def ask_for_registration(self):
-        result = messagebox.askyesno("登録", "登録しますか？")
-        return result
-    
-    def ask_for_pass(self):
-        password = simpledialog.askstring("テキスト入力", "テキストを入力してください:")
-        print("入力されたテキスト:", password)
-        if password:
-            # 入力されたテキストを処理する
-            print("入力されたテキスト:", password)
-            return True, password
-        else:
-            # キャンセルされた場合の処理
-            print("キャンセルしました")
-            return False, ""
-        
+
 
 class GUI:
     def __init__(self, client):
         self.client = client
 
         self.root = tk.Tk(None)
-        self.root.title("サンプルチャット")
+        self.root.title("掲示板")
 
         self.frame = tk.Frame(master=self.root, width=480, height=320)
 
-        self.label1 = tk.Label(master=self.frame, text="サンプルチャット", font=('メイリオ', '12'), bg="#cccccc")
+        self.label1 = tk.Label(master=self.frame, text="システムの利用には登録,認証が必要です", font=('メイリオ', '12'), bg="#cccccc")
         self.label1.place(relx=0, rely=0, relwidth=1.0, relheight=0.1)
 
+        self.label2 = tk.Label(master=self.frame, text="下部に文字列を入力して開始してください", font=('メイリオ', '12'), bg="#cccccc")
+        self.label2.place(relx=0, rely=0.1, relwidth=1.0, relheight=0.1)
+
         self.text_w = tk.Text(master=self.frame, state=tk.DISABLED, font=('メイリオ', '10'), bg="white")
-        self.text_w.place(relx=0.05, rely=0.1, relwidth=0.85, relheight=0.7)
+        self.text_w.place(relx=0.05, rely=0.2, relwidth=0.75, relheight=0.6)
 
         self.sb_y = tk.Scrollbar(master=self.frame, orient=tk.VERTICAL, command=self.text_w.yview)
-        self.sb_y.place(relx=0.90, rely=0.1, relwidth=0.05, relheight=0.7)
+        self.sb_y.place(relx=0.90, rely=0.2, relwidth=0.05, relheight=0.6)
         self.text_w.config(yscrollcommand=self.sb_y.set)
 
         self.entered_txt = tk.StringVar()
         self.etr = tk.Entry(master=self.frame, width=30, textvariable=self.entered_txt)
         self.etr.bind('<Return>', self.send_msg)
-        self.etr.place(relx=0.05, rely=0.85, relwidth=0.65, relheight=0.1)
+        self.etr.place(relx=0.05, rely=0.85, relwidth=0.75, relheight=0.1)
 
-        self.bt = tk.Button(master=self.frame, text="発言", bg="skyblue", command=self.send_msg)
-        self.bt.place(relx=0.75, rely=0.85, relwidth=0.20, relheight=0.1)
-
-        self.bt2 = tk.Button(master=self.frame, text="削除", bg="skyblue", command=self.all_delete)
-        self.bt2.place(relx=0.75, rely=0.0, relwidth=0.20, relheight=0.1)
-        
-        
+        self.bt = tk.Button(master=self.frame, text="投稿", bg="skyblue", command=self.send_msg)
+        self.bt.place(relx=0.85, rely=0.85, relwidth=0.10, relheight=0.1)
 
         self.frame.pack()
 
@@ -121,18 +99,13 @@ class GUI:
         while len(self.client.stocked_msg) > 0:
             self.receive_msg(self.client.stocked_msg.pop(0))
         self.text_w.after(200, self.stock_msg)
-
-    def all_delete(self):
-        self.text_w.config(state=tk.NORMAL)
-        self.text_w.delete(1.0, tk.END)
-        self.text_w.config(state=tk.DISABLED)
     
     def start(self, gui):
         gui.stock_msg()
         gui.root.mainloop()
     
     def ask_for_registration(self):
-        result = messagebox.askyesno("登録", "登録しますか？")
+        result = messagebox.askyesno("仮登録", "登録しますか？")
         return result
     
     def ask_for_pass(self):
@@ -149,7 +122,6 @@ class GUI:
         button = tk.Button(self.dialog, text="OK", command=close_dialog)
         button.pack()
 
-        # ダイアログが閉じられるまで待機
         self.dialog.wait_window(self.dialog)
 
         return password.get()
