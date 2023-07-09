@@ -2,13 +2,11 @@
 
 import socket
 import select
-import sys
-from datetime import datetime 
-import time
+from datetime import datetime
 import csv
 
 
-class SocketServer:
+class Server:
     def __init__(self, host, port, backlog=10, bufsize=4096):
         self.host = host
         self.port = port
@@ -17,7 +15,6 @@ class SocketServer:
         self.server_sock = None
         self.sock_list = []
         self.client_sock_table = {}
-        self.ip_list = []
         self.sender_ip = None
         self.flag = -1
         self.pass_data = self.dict_from_csv("password.csv")
@@ -44,12 +41,11 @@ class SocketServer:
                     else:
                         if self.check_account(sock):
                             if self.flag == 3:
-                                self.handle_client_message(sock, 2)
+                                self.handle_client_message(sock, 1)
                             else:
                                 # 登録してなかった時のメッセージを受け取る
                                 b_msg = sock.recv(self.bufsize)
                                 msg = b_msg.decode('utf-8')
-
                                 self.broadcast("アカウント認証を行ってください")
                                 self.send_to(sock, "パスワード")
                                 if self.handle_client_message(sock, 3):
@@ -62,13 +58,17 @@ class SocketServer:
                             msg = b_msg.decode('utf-8')
                             # クライアントに登録するか確認
                             self.send_to(sock, "未登録")
-                            if self.handle_client_message(sock, 1):
+                            if self.handle_client_message(sock, 2):
                                 # 登録完了
                                 # パスワードの設定
+                                self.broadcast("パスワードを登録してください")
                                 self.send_to(sock, "パスワード")
                                 if self.handle_client_message(sock, 4):
                                     # パスワードオッケー
                                     self.broadcast("パスワード登録完了です。会話に参加できます")
+                                else:
+                                    self.broadcast("パスワード登録失敗")
+                                    self.broadcast("仮登録からやり直して下さい")
                             else:
                                 # 登録失敗
                                 pass
@@ -87,18 +87,21 @@ class SocketServer:
             return False
 
     def broadcast(self, msg):
-        self.sock_list.remove(self.server_sock)
+        if self.server_sock in self.sock_list:
+            self.sock_list.remove(self.server_sock)
         for sock in self.sock_list:
             if not self.send_to(sock, msg):
                 self.sock_list.remove(sock)
-        self.sock_list.append(self.server_sock)
+        if self.server_sock not in self.sock_list:
+            self.sock_list.append(self.server_sock)
 
     def accept_connection(self):
         conn, address = self.server_sock.accept()
         self.sock_list.append(conn)
         self.client_sock_table[address] = conn
-        self.broadcast("ポート" + str(address[1]) + "番のユーザーが接続しました")
+        self.broadcast("IPアドレス" + str(address[0]) + "のユーザーが接続しました")
         print(str(address) + " is connected")
+
 
     def handle_client_message(self, sock, case):
         try:
@@ -116,16 +119,15 @@ class SocketServer:
                         break
                 if sender_port is not None:
                     if case == 1:
+                        self.broadcast(str(sender_ip) + ":" + msg)
+                        self.broadcast(f"送信時刻：{datetime.now()}")
+                    if case == 2:
                         if msg == "yes":
-                            self.ip_list.append(self.sender_ip)
-                            self.broadcast("登録完了")
+                            self.broadcast("仮登録完了")
                             self.flag = 2
                         elif msg == "no":
-                            self.broadcast("登録失敗")
+                            self.broadcast("仮登録失敗")
                             self.flag = -1
-                    if case == 2:
-                        self.broadcast(str(sender_port) + ":" + msg)
-                        self.broadcast(f"送信時刻：{datetime.now()}")
                     if case == 3:
                         server_pass = self.pass_data[sender_ip]
                         if msg != "" and msg == server_pass:
@@ -136,8 +138,8 @@ class SocketServer:
                                 writer = csv.writer(csvfile)
                                 writer.writerow([str(sender_ip), str(msg)])
                                 self.flag = 3
-                    # self.sock_list.append(self.server_sock)
- 
+                        else:
+                            self.flag = -1
             if self.flag > 0:
                 return True
             else:
@@ -156,9 +158,7 @@ class SocketServer:
                 if self.sender_ip in list(self.pass_data.keys()): 
                     return True
                 else:
-                    # self.sock_list.remove(self.server_sock)
                     self.broadcast("新規登録手続きを行います")
-                    # self.sock_list.append(self.server_sock)
                     return False
             else:
                 return False
@@ -175,7 +175,6 @@ class SocketServer:
         self.sock_list.remove(self.server_sock)
         self.broadcast("someone disconnected")
         self.sock_list.append(self.server_sock)
-        sys.exit()
 
 
     def dict_from_csv(self, file_path):
@@ -187,10 +186,8 @@ class SocketServer:
         return data
 
 
-# 使用例
 if __name__ == '__main__':
     host = '127.0.0.1'
     port = 50000
-
-    server = SocketServer(host, port)
+    server = Server(host, port)
     server.start()
